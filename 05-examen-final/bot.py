@@ -6,8 +6,9 @@ No contiene lógica de negocio; solo:
   - envía las respuestas por Telegram
 
 Variables de entorno (.env o entorno):
-    TELEGRAM_BOT_TOKEN   token del bot de BotFather
+    TELEGRAM_BOT_TOKEN       token del bot de BotFather
     LLM_API_KEY, LLM_MODEL, LLM_PROVIDER   (ya usadas por config.py)
+    LIVENESS_TIMEOUT_SECONDS segundos para responder el reto (por defecto 120)
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import random
 import time
 
 from telegram import Update
@@ -39,9 +41,15 @@ from core import (
 
 logger = logging.getLogger(__name__)
 
-# Login facial: intentos fallidos permitidos y vigencia del paso de la foto.
-MAX_INTENTOS_FACIALES = 3
-VIGENCIA_LOGIN_S = 300
+# Prueba de vida: segundos desde /login hasta recibir la video-nota.
+LIVENESS_TIMEOUT_S = int(os.getenv("LIVENESS_TIMEOUT_SECONDS", "120"))
+
+# Instrucciones que ve el usuario para cada reto (las claves viven en face.RETOS_LIVENESS).
+RETO_MENSAJE = {
+    "girar_izquierda": "gira la cabeza hacia tu izquierda",
+    "girar_derecha": "gira la cabeza hacia tu derecha",
+    "acercar": "acerca el rostro a la cámara",
+}
 
 # Estado por chat: chat_id -> {"historial": [...], "sesion": Sesion,
 #                              "login_pendiente": {...} | None}
@@ -98,10 +106,11 @@ async def cmd_quiensoy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Paso 1 del login: identifica al usuario y pide la foto del rostro.
+    """Paso 1 del login: identifica al usuario y genera un reto de prueba de vida.
 
     Dos factores: posesión (la cuenta de Telegram debe ser la vinculada al
-    usuario) + biométrico (el rostro, verificado 1:1 en on_foto).
+    usuario) + biométrico (rostro verificado 1:1 contra el enrolamiento) +
+    prueba de vida (el video debe mostrar el reto pedido).
     """
     chat_id = update.effective_chat.id
     estado = _estado(chat_id)
@@ -111,7 +120,7 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "Ejemplos:\n"
             "  /login 000548492   (estudiante)\n"
             "  /login integrante_2 (docente)\n\n"
-            "Después te pediré una foto de tu rostro."
+            "Después te pediré una VIDEO-NOTA con una prueba de vida."
         )
         return
 
@@ -138,86 +147,117 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
+    reto = random.choice(face.RETOS_LIVENESS)
     estado["login_pendiente"] = {
         "usuario": usuario,
         "telegram_user_id": update.effective_user.id,
-        "intentos": 0,
+        "reto": reto,
         "inicio": time.monotonic(),
+        "usado": False,
     }
     await update.message.reply_text(
-        "Verificación facial: envíame ahora una foto de tu rostro "
-        "(como foto, no como archivo; una sola persona en la imagen)."
+        "Verificación de vida 🔒\n\n"
+        f"Envíame una VIDEO-NOTA (video circular) donde {RETO_MENSAJE[reto]}.\n\n"
+        f"• Tienes {LIVENESS_TIMEOUT_S} segundos desde ahora.\n"
+        "• Debes aparecer tú solo y mirando a la cámara.\n"
+        "• Una foto NO sirve: debe ser una video-nota grabada ahora mismo.\n"
+        "• El video no debe ser reenviado.\n\n"
+        "Si fallas, deberás empezar de nuevo con /login."
     )
 
 
 async def on_foto(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Paso 2 del login: compara la foto 1:1 con el dueño de la cuenta."""
+    """R3: las fotos ya no sirven para el login; se rechazan y se pide video-nota."""
+    estado = _estado(update.effective_chat.id)
+    if estado.get("login_pendiente") is not None:
+        await update.message.reply_text(
+            "Para iniciar sesión debes enviar una VIDEO-NOTA (video circular), "
+            "no una foto. Graba un video con la instrucción indicada."
+        )
+    else:
+        await update.message.reply_text(
+            "No proceso fotos. Para iniciar sesión usa /login <código> y "
+            "envía una video-nota."
+        )
+
+
+async def _safe_reply(update: Update, texto: str) -> None:
+    """Responde sin propagar errores de red (si no se puede, al menos queda en el log)."""
+    try:
+        await update.message.reply_text(texto)
+    except Exception:
+        logger.exception("No pude responder al usuario (probablemente red)")
+
+
+async def on_video_nota(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Paso 2 del login: procesa el video-nota y verifica la prueba de vida."""
     chat_id = update.effective_chat.id
     estado = _estado(chat_id)
     pendiente = estado.get("login_pendiente")
 
     if pendiente is None:
-        await update.message.reply_text(
-            "Recibí una foto, pero no hay un login en curso. Usa /login <código>."
-        )
+        await _safe_reply(update, "Recibí un video, pero no hay un login en curso. Usa /login <código>.")
         return
 
-    # En grupos, otra persona podría mandar la foto: solo vale la del dueño.
     if update.effective_user.id != pendiente["telegram_user_id"]:
         return
 
-    if time.monotonic() - pendiente["inicio"] > VIGENCIA_LOGIN_S:
-        estado["login_pendiente"] = None
-        await update.message.reply_text(
-            "El login expiró. Vuelve a empezar con /login <código>."
-        )
+    if pendiente["usado"]:
+        await _safe_reply(update, "Este reto ya fue usado. Inicia de nuevo con /login <código>.")
         return
 
     usuario = pendiente["usuario"]
     uid = update.effective_user.id
-    await update.message.chat.send_action("typing")
+
+    es_reenviado = (
+        getattr(update.message, "forward_origin", None) is not None
+        or getattr(update.message, "is_forwarded", False)
+    )
+    if es_reenviado:
+        face.registrar_auditoria(usuario["id"], uid, "video_reenviado", None)
+        await _safe_reply(update, "No acepto videos reenviados. Graba una video-nota nueva.")
+        return
+
+    if time.monotonic() - pendiente["inicio"] > LIVENESS_TIMEOUT_S:
+        estado["login_pendiente"] = None
+        face.registrar_auditoria(usuario["id"], uid, "reto_vencido", None)
+        await _safe_reply(update, "El reto expiró. Vuelve a empezar con /login <código>.")
+        return
+
+    # Marca el reto como usado ANTES de verificar (un reto sirve una sola vez).
+    pendiente["usado"] = True
+    reto = pendiente["reto"]
+
+    # Cosmético: si falla por red, no rompe la verificación.
+    try:
+        await update.message.chat.send_action("typing")
+    except Exception:
+        logger.debug("send_action falló (red); continuamos igual", exc_info=True)
 
     try:
-        archivo = await update.message.photo[-1].get_file()
+        archivo = await update.message.video_note.get_file()
         datos = await archivo.download_as_bytearray()
-        img = face.decodificar(datos)
-        # La inferencia es CPU-bound: fuera del event loop.
-        aceptado, score = await asyncio.to_thread(face.verificar, img, usuario["id"])
-    except face.RostroInvalido as exc:
-        # Imagen inutilizable (sin rostro / varios): no cuenta como intento.
-        face.registrar_auditoria(usuario["id"], uid, "imagen_rechazada", None)
-        await update.message.reply_text(f"{exc} Envía otra foto.")
-        return
-    except Exception:
-        logger.exception("Error en la verificación facial")
-        await update.message.reply_text(
-            "No pude verificar tu rostro por un error interno. Intenta de nuevo."
+        resultado = await asyncio.to_thread(
+            face.verificar_liveness, bytes(datos), reto, usuario["id"]
         )
+    except Exception:
+        logger.exception("Error en la verificación de prueba de vida")
+        estado["login_pendiente"] = None
+        face.registrar_auditoria(usuario["id"], uid, "error_interno", None)
+        await _safe_reply(update, "No se pudo verificar la prueba de vida. Intenta de nuevo con /login.")
         return
 
-    if aceptado:
-        face.registrar_auditoria(usuario["id"], uid, "aceptado", score)
+    if resultado.ok:
+        face.registrar_auditoria(usuario["id"], uid, "aceptado", resultado.score)
         estado["login_pendiente"] = None
         estado["sesion"] = sesion_desde_usuario(usuario, uid)
-        # El historial de la sesión anterior no aplica a la nueva identidad.
         estado["historial"] = []
-        await update.message.reply_text(
-            f"✅ Sesión iniciada como {usuario['nombre']} ({usuario['rol']})."
-        )
+        await _safe_reply(update, f"✅ Sesión iniciada como {usuario['nombre']} ({usuario['rol']}).")
         return
 
-    face.registrar_auditoria(usuario["id"], uid, "rechazado", score)
-    pendiente["intentos"] += 1
-    if pendiente["intentos"] >= MAX_INTENTOS_FACIALES:
-        estado["login_pendiente"] = None
-        await update.message.reply_text(
-            "El rostro no coincide. Agotaste los intentos; inicia de nuevo con /login."
-        )
-    else:
-        restantes = MAX_INTENTOS_FACIALES - pendiente["intentos"]
-        await update.message.reply_text(
-            f"El rostro no coincide. Te quedan {restantes} intento(s)."
-        )
+    face.registrar_auditoria(usuario["id"], uid, f"liveness_{resultado.motivo}", resultado.score)
+    estado["login_pendiente"] = None
+    await _safe_reply(update, "No se pudo verificar la prueba de vida. Intenta de nuevo con /login.")
 
 
 async def cmd_logout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -235,7 +275,7 @@ async def cmd_ayuda(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "Comandos disponibles:\n"
         "/start — presentación\n"
-        "/login <código> — iniciar sesión (código + foto de tu rostro)\n"
+        "/login <código> — iniciar sesión (código + video-nota con prueba de vida)\n"
         "/quiensoy — ver tu sesión actual\n"
         "/logout — cerrar sesión\n"
         "/ayuda — este mensaje\n\n"
@@ -273,14 +313,21 @@ async def on_texto(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    logger.exception("Error en el bot", exc_info=context.error)
+    err = context.error
+    logger.error("Error en el bot: %r", err, exc_info=err)
+
+    # Los errores de red con Telegram son transitorios: un reintento suave evita
+    # que el usuario se quede sin respuesta.
+    if isinstance(err, telegram.error.NetworkError):
+        await asyncio.sleep(2)
+
     if isinstance(update, Update) and update.effective_message:
         try:
             await update.effective_message.reply_text(
-                "Ocurrió un error inesperado. Intenta de nuevo."
+                "Ocurrió un error de conexión con Telegram. Intenta de nuevo."
             )
         except Exception:
-            logger.exception("No se pudo responder al usuario tras error")
+            logger.exception("Tampoco pude responder tras error de red")
 
 
 # --------------------------------------------------------------------------
@@ -298,6 +345,9 @@ async def _post_init(app: Application) -> None:
         logger.exception(
             "Core no se pudo pre-iniciar; se reintentará al primer mensaje"
         )
+
+
+
 
 
 async def _post_shutdown(app: Application) -> None:
@@ -338,6 +388,8 @@ def main() -> None:
     app.add_handler(CommandHandler("login", cmd_login))
     app.add_handler(CommandHandler("logout", cmd_logout))
     app.add_handler(CommandHandler("ayuda", cmd_ayuda))
+    # R3: video-notas para prueba de vida; fotos se rechazan.
+    app.add_handler(MessageHandler(filters.VIDEO_NOTE, on_video_nota))
     app.add_handler(MessageHandler(filters.PHOTO, on_foto))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_texto))
     app.add_error_handler(on_error)
@@ -348,3 +400,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
