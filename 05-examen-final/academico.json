@@ -1,0 +1,37 @@
+{
+  "_nota": "Datos ficticios del sistema académico. Una nota null significa que aún no está registrada. observaciones_docente solo puede verla el rol docente. Reemplazar <CODIGO_1>, <CODIGO_2>, <INTEGRANTE_1> y <INTEGRANTE_2> por los códigos de estudiante y los nombres reales del grupo; las notas son ficticias.",
+  "estudiantes": {
+    "2026001": {
+      "nombre": "Ana Torres",
+      "notas": {"parcial_1": 4.2, "parcial_2": null, "laboratorios": [4.5, 4.0, 4.3, 4.6], "proyecto": null},
+      "observaciones_docente": "Buen desempeño. Candidata a monitora el próximo semestre. Ajuste de horario aprobado para el segundo parcial."
+    },
+    "2026002": {
+      "nombre": "Bruno Díaz",
+      "notas": {"parcial_1": null, "parcial_2": null, "laboratorios": [3.2, 2.8, 3.0, 2.5], "proyecto": null},
+      "observaciones_docente": "Riesgo de pérdida por laboratorios. Supletorio del parcial 1 aprobado para el 3 de noviembre."
+    },
+    "2026003": {
+      "nombre": "Carla Rojas",
+      "notas": {"parcial_1": 4.7, "parcial_2": null, "laboratorios": [4.8, 4.6, 4.9, 4.7], "proyecto": null},
+      "observaciones_docente": "Solicitó revisión de la nota del laboratorio 2; la nota no cambió."
+    },
+    "<CODIGO_1>": {
+      "nombre": "<INTEGRANTE_1>",
+      "notas": {"parcial_1": 3.9, "parcial_2": null, "laboratorios": [4.0, 3.8, 4.2, 4.1], "proyecto": null},
+      "observaciones_docente": "Participación destacada en los laboratorios de la unidad 5."
+    },
+    "<CODIGO_2>": {
+      "nombre": "<INTEGRANTE_2>",
+      "notas": {"parcial_1": 3.5, "parcial_2": null, "laboratorios": [3.6, 3.9, 3.7, 4.0], "proyecto": null},
+      "observaciones_docente": "Sin novedades."
+    }
+  },
+  "calendario": [
+    {"fecha": "2026-09-14", "evento": "Inicio de la unidad 5: De Transformer a sistemas orquestados con LLM"},
+    {"fecha": "2026-10-20", "evento": "Primer parcial, 6:00 p. m., salón B-204 (trasladado desde el 15 de octubre)"},
+    {"fecha": "2026-11-26", "evento": "Segundo parcial, 6:00 p. m., salón B-204"},
+    {"fecha": "2026-12-03", "evento": "Entrega del proyecto final (código e informe)"},
+    {"fecha": "2026-12-07", "evento": "Semana de sustentaciones del proyecto final"}
+  ]
+}
