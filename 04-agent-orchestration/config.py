@@ -29,6 +29,13 @@ LAB_DIR = Path(__file__).resolve().parent
 DATA_DIR = LAB_DIR.parent.parent / "labs" / "02-rag" / "data"
 INDEX_DIR = LAB_DIR / "index"  # generado por ingest.py; no se versiona
 
+def load_assistant_author() -> str:
+    """Nombre del autor/coordinador del asistente (R7 — personalización).
+
+    Se puede sobrescribir con la variable de entorno ASSISTANT_AUTHOR.
+    """
+    load_dotenv(find_dotenv(usecwd=True))
+    return os.getenv("ASSISTANT_AUTHOR", "Nathalia y Dalyali").strip() or "Nathalia y Dalyali"
 
 @dataclass(frozen=True)
 class Settings:

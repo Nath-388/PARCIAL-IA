@@ -12,7 +12,7 @@ Variables de entorno (.env o entorno):
 """
 
 from __future__ import annotations
-from config import load_security_settings
+from config import load_assistant_author, load_security_settings
 
 import asyncio
 import logging
@@ -46,6 +46,8 @@ from core import (
 logger = logging.getLogger(__name__)
 
 SEGURIDAD = None
+AUTOR_ASISTENTE = load_assistant_author()
+
 
 _INTENTOS_LOGIN = {}
 _BLOQUEOS_LOGIN = {}
@@ -138,14 +140,14 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
     await update.message.reply_text(
         f"¡Hola, {nombre}! 👋\n\n"
-        "Soy el Asistente del Curso de Inteligencia Artificial. Puedo responder:\n"
+        f"Soy el Asistente del Curso de Inteligencia Artificial, "
+        f"desarrollado por {AUTOR_ASISTENTE}. Puedo responder:\n"
         "• Fechas y eventos del curso\n"
         "• Políticas de evaluación y entrega\n"
         "• Tus notas (con /login)\n"
         "• Cálculos de nota final\n\n"
         "Usa /ayuda para ver todos los comandos."
     )
-
 
 async def cmd_quiensoy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
@@ -339,9 +341,7 @@ async def on_video_nota(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     if resultado.ok:
-        face.registrar_auditoria(
-            usuario["id"], uid, "aceptado", resultado.score
-        )
+        face.registrar_auditoria(usuario["id"], uid, "aceptado", resultado.score)
 
         reiniciar_intentos(uid)
 
@@ -354,12 +354,12 @@ async def on_video_nota(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
         await _safe_reply(
             update,
-            f"✅ Sesión iniciada como {usuario['nombre']} "
-            f"({usuario['rol']}). Tu sesión durará "
-            f"{SEGURIDAD.session_minutes} minutos."
+            f"✅ ¡Hola, {usuario['nombre']}! "
+            f"Sesión iniciada como {usuario['rol']}. "
+            f"Tu sesión durará {SEGURIDAD.session_minutes} minutos. "
+            "¿En qué te puedo ayudar?"
         )
         return
-
     face.registrar_auditoria(usuario["id"], uid, f"liveness_{resultado.motivo}", resultado.score)
     estado["login_pendiente"] = None
     await _safe_reply(update, "No se pudo verificar la prueba de vida. Intenta de nuevo con /login.")

@@ -9,15 +9,19 @@ Novedad del Lab 04: un prompt por componente.
   - RAG_SYSTEM_PROMPT:    responde con fragmentos recuperados (ruta "documentos", como el Lab 02)
   - AGENT_SYSTEM_PROMPT:  decide qué capacidades usar y en qué orden (modo agente y ruta "acciones")
 """
-
+from config import load_assistant_author
 from llm_client import Message
 
-PERSONA = """Eres el Asistente Inteligente del Curso de Inteligencia Artificial \
-de Ingeniería de Sistemas e Ingeniería de Software.
+AUTOR_ASISTENTE = load_assistant_author()
+
+PERSONA = f"""Eres el Asistente Inteligente del Curso de Inteligencia Artificial \
+de Ingeniería de Sistemas e Ingeniería de Software, desarrollado por {AUTOR_ASISTENTE}.
 
 Reglas generales:
 - Responde en español, de forma clara y concisa (máximo un párrafo, salvo que pidan más detalle).
-- Los estudiantes ya conocen redes neuronales, NLP, atención y Transformers: no expliques desde cero."""
+- Los estudiantes ya conocen redes neuronales, NLP, atención y Transformers: no expliques desde cero.
+- Cuando el contexto de sesión indique el nombre de la persona autenticada, salúdala por su \
+nombre y trátala con familiaridad; si la sesión es pública, trátala como "estudiante"."""
 
 # --- Modo router ------------------------------------------------------------------------------
 
