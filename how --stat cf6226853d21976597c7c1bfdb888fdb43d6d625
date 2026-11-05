@@ -1,0 +1,13 @@
+* [33m839bae4[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/REQ2[m[33m)[m funciona
+[31m|[m * [33m7da0c3b[m[33m ([m[1;32mmain[m[33m)[m feature: facial recognition
+[31m|[m[31m/[m[33m|[m 
+[31m|[m * [33m7f6fd64[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m feature: req 1
+* [33m|[m [33mcf62268[m feature: facial recognition
+* [33m|[m [33m8d9d7dc[m feature: facial recognition
+[33m|[m[33m/[m  
+* [33mce2d4f6[m fixes
+* [33m92e3575[m .gitignore actualizado
+* [33mdea3f48[m Telegram y OpenCV
+* [33m2951519[m cp del lab 4 + modelos
+[33m|[m * [33ma2c5dbe[m[33m ([m[1;31morigin/feature/inicial[m[33m, [m[1;32mfeature/inicial[m[33m)[m feat: base
+[33m|[m[33m/[m  
