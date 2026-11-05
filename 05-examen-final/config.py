@@ -29,6 +29,45 @@ LAB_DIR = Path(__file__).resolve().parent
 DATA_DIR = LAB_DIR / "data"
 INDEX_DIR = LAB_DIR / "index"  # generado por ingest.py; no se versiona
 
+@dataclass(frozen=True)
+class SecuritySettings:
+    face_match_threshold: float
+    session_minutes: int
+    login_max_attempts: int
+    liveness_timeout_seconds: int
+    login_lockout_minutes: int
+
+def load_security_settings() -> SecuritySettings:
+    load_dotenv(find_dotenv(usecwd=True))
+
+    settings = SecuritySettings(
+        face_match_threshold=float(
+            os.getenv("FACE_MATCH_THRESHOLD", "0.363")
+        ),
+        session_minutes=int(os.getenv("SESSION_MINUTES", "10")),
+        login_max_attempts=int(
+            os.getenv("LOGIN_MAX_ATTEMPTS", "3")
+        ),
+        liveness_timeout_seconds=int(
+            os.getenv("LIVENESS_TIMEOUT_SECONDS", "60")
+        ),
+        login_lockout_minutes=int(
+            os.getenv("LOGIN_LOCKOUT_MINUTES", "15")
+        ),
+    )
+
+    if not 0 < settings.face_match_threshold <= 1:
+        raise ValueError("FACE_MATCH_THRESHOLD debe estar entre 0 y 1.")
+
+    if min(
+        settings.session_minutes,
+        settings.login_max_attempts,
+        settings.liveness_timeout_seconds,
+        settings.login_lockout_minutes,
+    ) <= 0:
+        raise ValueError("Las configuraciones de seguridad deben ser positivas.")
+
+    return settings
 
 @dataclass(frozen=True)
 class Settings:

@@ -56,8 +56,9 @@ class ResultadoLiveness:
 
 def umbral() -> float:
     try:
-        return float(os.getenv("FACE_UMBRAL", UMBRAL_REFERENCIA))
-    except ValueError:
+        from config import load_security_settings
+        return load_security_settings().face_match_threshold
+    except (ValueError, TypeError):
         return UMBRAL_REFERENCIA
 
 

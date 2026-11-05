@@ -12,6 +12,7 @@ Variables de entorno (.env o entorno):
 """
 
 from __future__ import annotations
+from config import load_security_settings
 
 import asyncio
 import logging
@@ -41,8 +42,10 @@ from core import (
 
 logger = logging.getLogger(__name__)
 
-# Prueba de vida: segundos desde /login hasta recibir la video-nota.
-LIVENESS_TIMEOUT_S = int(os.getenv("LIVENESS_TIMEOUT_SECONDS", "120"))
+SEGURIDAD = None
+
+_INTENTOS_LOGIN = {}
+_BLOQUEOS_LOGIN = {}
 
 # Instrucciones que ve el usuario para cada reto (las claves viven en face.RETOS_LIVENESS).
 RETO_MENSAJE = {
@@ -65,6 +68,58 @@ def _estado(chat_id: int) -> dict:
         }
     return _ESTADO[chat_id]
 
+def esta_bloqueado(telegram_user_id: int) -> bool:
+    bloqueo = _BLOQUEOS_LOGIN.get(telegram_user_id)
+
+    if bloqueo is None:
+        return False
+
+    if time.monotonic() >= bloqueo:
+        _BLOQUEOS_LOGIN.pop(telegram_user_id, None)
+        _INTENTOS_LOGIN.pop(telegram_user_id, None)
+        return False
+
+    return True
+
+
+def registrar_intento_fallido(telegram_user_id: int) -> bool:
+    intentos = _INTENTOS_LOGIN.get(telegram_user_id, 0) + 1
+
+    _INTENTOS_LOGIN[telegram_user_id] = intentos
+
+    if intentos >= SEGURIDAD.login_max_attempts:
+        duracion = SEGURIDAD.login_lockout_minutes * 60
+
+        _BLOQUEOS_LOGIN[telegram_user_id] = (
+            time.monotonic() + duracion
+        )
+
+        return True
+
+    return False
+
+
+def reiniciar_intentos(telegram_user_id: int) -> None:
+    _INTENTOS_LOGIN.pop(telegram_user_id, None)
+    _BLOQUEOS_LOGIN.pop(telegram_user_id, None)
+
+def verificar_expiracion_sesion(estado: dict) -> bool:
+    expiracion = estado.get("sesion_expira")
+
+    if expiracion is None:
+        return False
+
+    if time.monotonic() >= expiracion:
+        estado["sesion"] = sesion_publica(
+            estado["sesion"].telegram_user_id
+        )
+        estado["historial"] = []
+        estado["login_pendiente"] = None
+        estado.pop("sesion_expira", None)
+
+        return True
+
+    return False
 
 # --------------------------------------------------------------------------
 # Comandos
@@ -113,6 +168,18 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     prueba de vida (el video debe mostrar el reto pedido).
     """
     chat_id = update.effective_chat.id
+
+    telegram_user_id = update.effective_user.id
+
+    if esta_bloqueado(telegram_user_id):
+        await update.message.reply_text(
+            "🔒 Tu acceso está temporalmente bloqueado "
+            "por demasiados intentos fallidos. "
+            f"Intenta nuevamente en "
+            f"{SEGURIDAD.login_lockout_minutes} minutos."
+        )
+        return
+
     estado = _estado(chat_id)
     if not context.args:
         await update.message.reply_text(
@@ -125,17 +192,36 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     usuario = buscar_usuario(context.args[0])
+
     if usuario is None:
-        await update.message.reply_text(
-            "No encontré un usuario con ese identificador."
-        )
-        return
+        bloqueado = registrar_intento_fallido(uid)
+
+        estado["login_pendiente"] = None
+
+        if bloqueado:
+            mensaje = (
+                "🔒 Has alcanzado el límite de intentos fallidos. "
+                "Tu acceso está bloqueado durante "
+                f"{SEGURIDAD.login_lockout_minutes} minutos."
+            )
+        else:
+            restantes = (
+                SEGURIDAD.login_max_attempts - _INTENTOS_LOGIN[uid]
+            )
+            mensaje = (
+                "No se pudo verificar tu identidad. "
+                f"Intentos restantes: {restantes}."
+            )
+
+        await _safe_reply(update, mensaje)
 
     # Factor de posesión: solo el dueño de la cuenta vinculada puede continuar.
     if usuario.get("telegram_user_id") != update.effective_user.id:
         face.registrar_auditoria(
             usuario["id"], update.effective_user.id, "cuenta_no_vinculada", None
         )
+
+        bloqueado = registrar_intento_fallido(telegram_user_id)
         await update.message.reply_text(
             "Esta cuenta de Telegram no está vinculada a ese usuario."
         )
@@ -248,11 +334,25 @@ async def on_video_nota(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     if resultado.ok:
-        face.registrar_auditoria(usuario["id"], uid, "aceptado", resultado.score)
+        face.registrar_auditoria(
+            usuario["id"], uid, "aceptado", resultado.score
+        )
+
+        reiniciar_intentos(uid)
+
         estado["login_pendiente"] = None
         estado["sesion"] = sesion_desde_usuario(usuario, uid)
+        estado["sesion_expira"] = (
+            time.monotonic() + SEGURIDAD.session_minutes * 60
+        )
         estado["historial"] = []
-        await _safe_reply(update, f"✅ Sesión iniciada como {usuario['nombre']} ({usuario['rol']}).")
+
+        await _safe_reply(
+            update,
+            f"✅ Sesión iniciada como {usuario['nombre']} "
+            f"({usuario['rol']}). Tu sesión durará "
+            f"{SEGURIDAD.session_minutes} minutos."
+        )
         return
 
     face.registrar_auditoria(usuario["id"], uid, f"liveness_{resultado.motivo}", resultado.score)
@@ -266,6 +366,7 @@ async def cmd_logout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     estado["sesion"] = sesion_publica(update.effective_user.id)
     estado["historial"] = []
     estado["login_pendiente"] = None
+    estado.pop("sesion_expira", None)
     await update.message.reply_text(
         "Sesión cerrada. Vuelves a ser un usuario público."
     )
@@ -294,6 +395,14 @@ async def on_texto(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     estado = _estado(chat_id)
+    
+    if verificar_expiracion_sesion(estado):
+        await update.message.reply_text(
+            "⏰ Tu sesión ha expirado. "
+            "Para acceder nuevamente utiliza /login <código>."
+        )
+        return
+
     await update.message.chat.send_action("typing")
 
     try:
@@ -368,6 +477,12 @@ def main() -> None:
     from dotenv import find_dotenv, load_dotenv
 
     load_dotenv(find_dotenv(usecwd=True))
+
+    global SEGURIDAD, LIVENESS_TIMEOUT_S
+
+    SEGURIDAD = load_security_settings()
+
+    LIVENESS_TIMEOUT_S = SEGURIDAD.liveness_timeout_seconds
 
     token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     if not token:
