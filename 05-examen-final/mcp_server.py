@@ -65,6 +65,7 @@ def consultar_notas(codigo: CodigoEstudiante) -> dict[str, Any]:
         "nombre": estudiante["nombre"],
         "notas": notas,
         "promedio_laboratorios": round(sum(laboratorios) / len(laboratorios), 2) if laboratorios else None,
+        "observaciones_docente": estudiante.get("observaciones_docente"),
     }
 
 
@@ -101,6 +102,29 @@ def solicitar_supletorio(
     }
     SOLICITUDES.append(solicitud)
     return solicitud
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+def registrar_nota(
+    codigo: CodigoEstudiante,
+    evaluacion: Annotated[
+        Literal["parcial_1", "parcial_2", "proyecto"],
+        Field(description="Evaluación en la que se registrará la nota"),
+    ],
+    valor: Annotated[float, Field(ge=0.0, le=5.0, description="Nota entre 0.0 y 5.0")],
+) -> dict[str, Any]:
+    """Registra o actualiza una nota de un estudiante. Acción exclusiva del docente; requiere confirmación."""
+    estudiante = buscar_estudiante(codigo)
+    if evaluacion not in estudiante["notas"]:
+        raise ToolError(f"Evaluación no válida: {evaluacion}.")
+    estudiante["notas"][evaluacion] = round(float(valor), 2)
+    return {
+        "codigo": codigo,
+        "nombre": estudiante["nombre"],
+        "evaluacion": evaluacion,
+        "valor": estudiante["notas"][evaluacion],
+        "estado": "nota registrada",
+    }
 
 
 @mcp.resource("academico://calendario", description="Fechas clave del curso (parciales y proyecto final)")

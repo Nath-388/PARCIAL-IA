@@ -155,16 +155,38 @@ def sesion_publica(telegram_user_id: int | None = None) -> Sesion:
 
 
 def _contexto_sesion(sesion: Sesion) -> str:
-    if not sesion.autenticado:
+    """Instrucciones de seguridad y alcance de datos específicas para cada rol."""
+    if not sesion.autenticado or sesion.rol == "publico":
         return (
-            "Sesión actual: usuario PÚBLICO (sin login). No reveles notas, casos especiales ni "
-            "información reservada. Si piden datos privados, indícales que usen /login."
+            "Sesión actual: usuario PÚBLICO (sin login). No reveles notas, solicitudes, "
+            "observaciones docentes ni información reservada. Si piden datos privados, "
+            "indícales que inicien sesión con /login."
         )
-    codigo = sesion.codigo_estudiante or "(docente, sin código)"
+
+    if sesion.rol == "estudiante":
+        return (
+            f"Sesión actual: {sesion.nombre} | rol=estudiante | "
+            f"código={sesion.codigo_estudiante}. "
+            "SEGURIDAD: solo puedes consultar las notas y solicitudes del estudiante "
+            "autenticado. Usa consultar_mis_notas() y consultar_mis_solicitudes() sin "
+            "parámetros de código. Nunca intentes consultar datos de otro estudiante. "
+            "No reveles observaciones_docente."
+        )
+
+    if sesion.rol == "docente":
+        return (
+            f"Sesión actual: {sesion.nombre} | rol=docente. "
+            "PERMISOS DOCENTES: puedes consultar las notas y solicitudes de CUALQUIER "
+            "estudiante del curso. Cuando el usuario indique un código, debes utilizar "
+            "consultar_notas(codigo) o consultar_solicitudes(codigo), pasando exactamente "
+            "el código solicitado. No limites la consulta al código asociado a la cuenta "
+            "del docente. Puedes ver observaciones_docente. Para modificar una nota usa "
+            "registrar_nota(codigo, evaluacion, valor), que requiere confirmación explícita."
+        )
+
     return (
-        f"Sesión actual: {sesion.nombre} | rol={sesion.rol} | código={codigo}. "
-        "Las tools de notas/solicitudes solo aceptan el código de esta sesión. "
-        "Si intenta consultar otro código, la tool fallará y debes explicárselo."
+        f"Sesión actual: {sesion.nombre} | rol={sesion.rol}. "
+        "No ejecutes operaciones fuera de las herramientas autorizadas para este rol."
     )
 
 
@@ -206,34 +228,87 @@ class SessionRAG(CourseRAG):
         return permitidos[: self.top_k]
 
 
-def _tool_con_sesion(tool: Tool, sesion: Sesion) -> Tool:
-    """Envuelve una tool de datos (MCP) para aplicar la sesión. Las tools locales no se envuelven."""
-    if tool.origin == "local":
-        return tool
-    pide_codigo = "codigo" in tool.parameters.get("properties", {})
 
-    async def run(arguments: dict[str, Any]) -> str:
-        if sesion.rol == "publico":
-            raise ToolExecutionError("Debes iniciar sesión con /login antes de consultar esta información.")
-        if sesion.rol == "estudiante" and pide_codigo:
-            if not sesion.codigo_estudiante:
-                raise ToolExecutionError("Tu sesión no tiene un código de estudiante asociado.")
-            # Se ignora el código que haya puesto el LLM: solo vale el de la sesión.
-            arguments = {**arguments, "codigo": sesion.codigo_estudiante}
-        return await tool.run(arguments)
+def _schema_sin_codigo(schema: dict[str, Any]) -> dict[str, Any]:
+    """Copia el JSON Schema quitando el código, que nunca debe pedir el modelo al estudiante."""
+    copia = json.loads(json.dumps(schema))
+    copia.get("properties", {}).pop("codigo", None)
+    copia["required"] = [x for x in copia.get("required", []) if x != "codigo"]
+    return copia
 
-    return Tool(
-        name=tool.name,
-        description=tool.description,
-        parameters=tool.parameters,
-        run=run,
-        read_only=tool.read_only,
-        origin=tool.origin,
-    )
+
+def _tools_para_sesion(base_tools: list[Tool], sesion: Sesion) -> list[Tool]:
+    """Lista blanca de herramientas por rol. La autorización se aplica antes del LLM."""
+    locales = [t for t in base_tools if t.origin == "local"]
+    mcp = {t.name: t for t in base_tools if t.origin != "local"}
+
+    if sesion.rol == "publico":
+        return locales
+
+    if sesion.rol == "estudiante":
+        if not sesion.codigo_estudiante:
+            return locales
+        permitidas = []
+        # Los alias de estudiante no exponen ni aceptan el código.
+        for alias, original in (
+            ("consultar_mis_notas", "consultar_notas"),
+            ("consultar_mis_solicitudes", "consultar_solicitudes"),
+        ):
+            tool = mcp.get(original)
+            if tool is None:
+                continue
+
+            async def run(arguments: dict[str, Any], _tool=tool) -> str:
+                raw = await _tool.run({**arguments, "codigo": sesion.codigo_estudiante})
+                if _tool.name == "consultar_notas":
+                    try:
+                        data = json.loads(raw)
+                        data.pop("observaciones_docente", None)
+                        return json.dumps(data, ensure_ascii=False)
+                    except (TypeError, ValueError):
+                        raise ToolExecutionError("No fue posible procesar la respuesta de notas.")
+                return raw
+
+            permitidas.append(Tool(
+                name=alias,
+                description=(
+                    "Consulta únicamente la información del estudiante autenticado en esta sesión. "
+                    "No solicites ni aceptes códigos de estudiante."
+                ),
+                parameters=_schema_sin_codigo(tool.parameters),
+                run=run,
+                read_only=True,
+                origin=tool.origin,
+            ))
+
+        accion = mcp.get("solicitar_supletorio")
+        if accion is not None:
+            async def solicitar(arguments: dict[str, Any], _tool=accion) -> str:
+                return await _tool.run({**arguments, "codigo": sesion.codigo_estudiante})
+
+            schema = _schema_sin_codigo(accion.parameters)
+            permitidas.append(Tool(
+                name="solicitar_supletorio",
+                description=(
+                    "Registra una solicitud de supletorio para el estudiante autenticado. "
+                    "Requiere confirmación explícita del usuario en Telegram antes de ejecutarse."
+                ),
+                parameters=schema,
+                run=solicitar,
+                read_only=False,
+                origin=accion.origin,
+            ))
+        return [*locales, *permitidas]
+
+    if sesion.rol == "docente":
+        nombres = ("consultar_notas", "consultar_solicitudes", "registrar_nota")
+        return [*locales, *(mcp[n] for n in nombres if n in mcp)]
+
+    return locales
 
 
 async def _rechazar(tool: Tool, arguments: dict[str, Any]) -> bool:
-    # Telegram no tiene diálogo de confirmación interactivo: las ACCIONES se rechazan por defecto.
+    # Sin una interfaz de confirmación explícita, las acciones se deniegan.
     return False
 
 
@@ -288,21 +363,32 @@ class Core:
     def _orquestador(self, sesion: Sesion) -> tuple[Orchestrator, SessionRAG]:
         assert self._llm is not None and self._rag is not None
         rag = SessionRAG(self._rag, sesion.rol)
-        tools = [_tool_con_sesion(t, sesion) for t in self._base_tools]
+        tools = _tools_para_sesion(self._base_tools, sesion)
         return Orchestrator(self._llm, rag, tools, _rechazar), rag
 
-    async def responder(self, pregunta: str, historial: list[Message], sesion: Sesion) -> str:
+    async def responder(
+        self, pregunta: str, historial: list[Message], sesion: Sesion,
+        confirm: Any = None,
+    ) -> str:
         try:
             if self._stack is None:
                 await self.iniciar()
             orquestador, rag = self._orquestador(sesion)
+            if confirm is not None:
+                # El callback solo autoriza acciones de esta interacción de Telegram.
+                orquestador.agent.confirm = confirm
+                orquestador.actions_agent.confirm = confirm
             contexto: list[Message] = [
                 {"role": "system", "content": _contexto_sesion(sesion)}, *historial
             ]
             respuesta = await orquestador.answer(pregunta, contexto, MODO)
-        except LLMError as exc:
-            ...
-        # ...
+        except LLMError:
+            logger.exception("El proveedor LLM falló al procesar la solicitud")
+            return MSG_LLM_CAIDO
+        except Exception:
+            logger.exception("Error inesperado en el orquestador")
+            return MSG_ERROR
+
         texto = respuesta.text.strip() or "No pude generar una respuesta. Intenta reformular la pregunta."
 
         # Si la evidencia existía pero el rol no puede verla, se lo decimos sin revelar contenido.
@@ -345,6 +431,7 @@ async def responder(
     pregunta: str,
     historial: list[Message] | None = None,
     sesion: Sesion | None = None,
+    confirm: Any = None,
 ) -> str:
     """Punto de entrada del núcleo. No depende de Telegram y nunca lanza excepciones por LLM/MCP."""
     try:
@@ -352,7 +439,7 @@ async def responder(
     except Exception:
         logger.exception("No se pudo iniciar el core")
         return "El asistente no pudo iniciar (LLM, índice o servidor MCP). Intenta de nuevo en unos minutos."
-    return await core.responder(pregunta, historial or [], sesion or Sesion())
+    return await core.responder(pregunta, historial or [], sesion or Sesion(), confirm)
 
 
 async def cerrar_core() -> None:
@@ -360,6 +447,8 @@ async def cerrar_core() -> None:
     if _core is not None:
         await _core.cerrar()
         _core = None
+
+
 
 
 

@@ -19,11 +19,14 @@ import logging
 import os
 import random
 import time
+import secrets
 
-from telegram import Update
+import telegram
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
+    CallbackQueryHandler,
     ContextTypes,
     MessageHandler,
     filters,
@@ -57,6 +60,7 @@ RETO_MENSAJE = {
 # Estado por chat: chat_id -> {"historial": [...], "sesion": Sesion,
 #                              "login_pendiente": {...} | None}
 _ESTADO: dict[int, dict] = {}
+_CONFIRMACIONES: dict[str, dict] = {}
 
 
 def _estado(chat_id: int) -> dict:
@@ -194,7 +198,7 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     usuario = buscar_usuario(context.args[0])
 
     if usuario is None:
-        bloqueado = registrar_intento_fallido(uid)
+        bloqueado = registrar_intento_fallido(telegram_user_id)
 
         estado["login_pendiente"] = None
 
@@ -214,6 +218,7 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
 
         await _safe_reply(update, mensaje)
+        return
 
     # Factor de posesión: solo el dueño de la cuenta vinculada puede continuar.
     if usuario.get("telegram_user_id") != update.effective_user.id:
@@ -384,6 +389,31 @@ async def cmd_ayuda(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def on_confirmacion(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Resuelve la autorización explícita de una acción solicitada por el agente."""
+    query = update.callback_query
+    await query.answer()
+    data = (query.data or "").split(":")
+    if len(data) != 3 or data[0] != "confirmar":
+        return
+    _, token, decision = data
+    pendiente = _CONFIRMACIONES.get(token)
+    if pendiente is None:
+        await query.edit_message_text("Esta confirmación ya venció o fue procesada.")
+        return
+    if query.from_user.id != pendiente["telegram_user_id"]:
+        await query.answer("Esta confirmación pertenece a otro usuario.", show_alert=True)
+        return
+    _CONFIRMACIONES.pop(token, None)
+    future = pendiente["future"]
+    if not future.done():
+        future.set_result(decision == "si")
+    await query.edit_message_text(
+        "✅ Acción autorizada. Ejecutando..." if decision == "si"
+        else "❌ Acción cancelada. No se realizó ningún cambio."
+    )
+
+
 # --------------------------------------------------------------------------
 # Mensajes de texto
 # --------------------------------------------------------------------------
@@ -405,8 +435,36 @@ async def on_texto(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     await update.message.chat.send_action("typing")
 
+    async def confirmar_accion(tool, arguments):
+        token = secrets.token_urlsafe(8)
+        future = asyncio.get_running_loop().create_future()
+        _CONFIRMACIONES[token] = {
+            "future": future,
+            "telegram_user_id": update.effective_user.id,
+        }
+        resumen = ", ".join(f"{k}: {v}" for k, v in arguments.items())
+        teclado = InlineKeyboardMarkup([[
+            InlineKeyboardButton("Confirmar", callback_data=f"confirmar:{token}:si"),
+            InlineKeyboardButton("Cancelar", callback_data=f"confirmar:{token}:no"),
+        ]])
+        await update.effective_message.reply_text(
+            f"⚠️ Confirmación requerida\n\nAcción: {tool.name}\n{resumen}\n\n"
+            "¿Autorizas ejecutar esta acción?",
+            reply_markup=teclado,
+        )
+        try:
+            return await asyncio.wait_for(future, timeout=120)
+        except asyncio.TimeoutError:
+            _CONFIRMACIONES.pop(token, None)
+            await update.effective_message.reply_text(
+                "La confirmación expiró. No se ejecutó ninguna acción."
+            )
+            return False
+
     try:
-        respuesta = await responder(texto, estado["historial"], estado["sesion"])
+        respuesta = await responder(
+            texto, estado["historial"], estado["sesion"], confirm=confirmar_accion
+        )
     except Exception:
         logger.exception("Error al procesar mensaje en el core")
         respuesta = "Ocurrió un error inesperado. Intenta de nuevo en un momento."
@@ -494,6 +552,9 @@ def main() -> None:
     app = (
         Application.builder()
         .token(token)
+        # Permite procesar el callback de Confirmar/Cancelar mientras on_texto
+        # está esperando la respuesta del usuario.
+        .concurrent_updates(16)
         .post_init(_post_init)
         .post_shutdown(_post_shutdown)
         .build()
@@ -503,6 +564,7 @@ def main() -> None:
     app.add_handler(CommandHandler("login", cmd_login))
     app.add_handler(CommandHandler("logout", cmd_logout))
     app.add_handler(CommandHandler("ayuda", cmd_ayuda))
+    app.add_handler(CallbackQueryHandler(on_confirmacion, pattern=r"^confirmar:"))
     # R3: video-notas para prueba de vida; fotos se rechazan.
     app.add_handler(MessageHandler(filters.VIDEO_NOTE, on_video_nota))
     app.add_handler(MessageHandler(filters.PHOTO, on_foto))
@@ -515,4 +577,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
