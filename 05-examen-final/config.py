@@ -4,8 +4,8 @@ Responsabilidad: reunir en un solo lugar todo lo que depende del entorno
 (proveedor, credenciales, modelo y parámetros). Ningún otro módulo lee
 variables de entorno directamente.
 
-Novedad del Lab 02: RAGSettings. Indexar y buscar no usan el LLM, por eso
-tienen su propia configuración y no exigen LLM_API_KEY.
+RAGSettings: indexar y buscar no usan el LLM, por eso tienen su propia
+configuración y no exigen LLM_API_KEY.
 """
 
 import os
@@ -25,8 +25,8 @@ PROVIDER_BASE_URLS = {
 }
 
 LAB_DIR = Path(__file__).resolve().parent
-# La solución docente usa los mismos documentos que el lab del estudiante.
-DATA_DIR = LAB_DIR.parent.parent / "labs" / "02-rag" / "data"
+# Raíz de los documentos: data/ contiene las subcarpetas publico/ y restringido/ (docente y estudiante).
+DATA_DIR = LAB_DIR / "data"
 INDEX_DIR = LAB_DIR / "index"  # generado por ingest.py; no se versiona
 
 

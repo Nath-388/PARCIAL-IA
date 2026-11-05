@@ -4,12 +4,29 @@ Un documento completo es demasiado largo y mezcla muchos temas. Lo dividimos en
 fragmentos (chunks) que se indexan y se recuperan por separado: al LLM solo le
 llegan los fragmentos relevantes para la pregunta.
 
+Los documentos viven en subcarpetas por nivel de acceso:
+    publico/                 cualquier usuario
+    restringido/estudiante/  estudiantes autenticados
+    restringido/docente/     solo docente
+El control de acceso lo aplica core.py (SessionRAG) usando el nombre del archivo.
+
 Uso (prueba de chunking, sin modelos ni API):
-    uv run python labs/04-agent-orchestration/documents.py
+    uv run python documents.py
 """
 
 from dataclasses import dataclass
 from pathlib import Path
+
+# Subcarpetas de data_dir que se indexan.
+DOCUMENT_DIRS = ("publico", "restringido")
+
+# Archivos que NO son conocimiento del curso: enunciados de otra asignatura y un solucionario.
+# Nunca deben llegar al índice (el solucionario es de uso exclusivo del docente).
+EXCLUDED_DOCS = {
+    "parcial-90min.md",
+    "parcial-90min-respuestas.md",
+    "parcial-practico-corte2.md",
+}
 
 
 @dataclass(frozen=True)
@@ -26,7 +43,14 @@ class Chunk:
 
 
 def load_documents(data_dir: Path) -> list[Document]:
-    paths = sorted(data_dir.glob("*.md"))
+    paths: list[Path] = []
+    for sub in DOCUMENT_DIRS:
+        folder = data_dir / sub
+        if folder.is_dir():
+            paths.extend(folder.rglob("*.md"))
+    if not paths:  # compatibilidad: carpeta plana con .md
+        paths = list(data_dir.glob("*.md"))
+    paths = sorted(p for p in paths if p.name not in EXCLUDED_DOCS)
     return [Document(source=path.name, text=path.read_text(encoding="utf-8")) for path in paths]
 
 

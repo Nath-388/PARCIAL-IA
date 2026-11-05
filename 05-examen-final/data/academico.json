@@ -1,5 +1,5 @@
 {
-  "_nota": "Datos ficticios del sistema académico. Una nota null significa que aún no está registrada. observaciones_docente solo puede verla el rol docente. Reemplazar <CODIGO_1>, <CODIGO_2>, <INTEGRANTE_1> y <INTEGRANTE_2> por los códigos de estudiante y los nombres reales del grupo; las notas son ficticias.",
+  "_nota": "Datos ficticios del sistema académico. Una nota null significa que aún no está registrada. observaciones_docente solo puede verla el rol docente. Las notas son ficticias.",
   "estudiantes": {
     "2026001": {
       "nombre": "Ana Torres",
@@ -16,15 +16,10 @@
       "notas": {"parcial_1": 4.7, "parcial_2": null, "laboratorios": [4.8, 4.6, 4.9, 4.7], "proyecto": null},
       "observaciones_docente": "Solicitó revisión de la nota del laboratorio 2; la nota no cambió."
     },
-    "<CODIGO_1>": {
-      "nombre": "<INTEGRANTE_1>",
+    "000548492": {
+      "nombre": "Nathalia Rojas",
       "notas": {"parcial_1": 3.9, "parcial_2": null, "laboratorios": [4.0, 3.8, 4.2, 4.1], "proyecto": null},
       "observaciones_docente": "Participación destacada en los laboratorios de la unidad 5."
-    },
-    "<CODIGO_2>": {
-      "nombre": "<INTEGRANTE_2>",
-      "notas": {"parcial_1": 3.5, "parcial_2": null, "laboratorios": [3.6, 3.9, 3.7, 4.0], "proyecto": null},
-      "observaciones_docente": "Sin novedades."
     }
   },
   "calendario": [
