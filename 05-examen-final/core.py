@@ -109,6 +109,29 @@ def autenticar(identificador: str, telegram_user_id: int | None = None) -> Sesio
     return None
 
 
+def sesion_desde_usuario(usuario: dict, telegram_user_id: int | None = None) -> Sesion:
+    """Crea la Sesion de un usuario ya verificado (código + rostro)."""
+    return Sesion(
+        telegram_user_id=telegram_user_id,
+        usuario=usuario,
+        rol=usuario["rol"],
+        codigo_estudiante=usuario.get("codigo_estudiante"),
+        nombre=usuario["nombre"],
+    )
+
+
+def autenticar(identificador: str, telegram_user_id: int | None = None) -> Sesion | None:
+    """Autenticación SIN biometría: solo para pruebas locales (test_core.py).
+
+    El bot de Telegram NO la usa: allí el login exige además la verificación
+    facial 1:1 (ver bot.py y face.py).
+    """
+    usuario = buscar_usuario(identificador)
+    if usuario is None:
+        return None
+    return sesion_desde_usuario(usuario, telegram_user_id)
+
+
 def sesion_publica(telegram_user_id: int | None = None) -> Sesion:
     return Sesion(telegram_user_id=telegram_user_id)
 
