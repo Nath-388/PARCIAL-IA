@@ -5,10 +5,11 @@ fragmentos (chunks) que se indexan y se recuperan por separado: al LLM solo le
 llegan los fragmentos relevantes para la pregunta.
 
 Los documentos viven en subcarpetas por nivel de acceso:
-    publico/                 cualquier usuario
-    restringido/estudiante/  estudiantes autenticados
-    restringido/docente/     solo docente
-El control de acceso lo aplica core.py (SessionRAG) usando el nombre del archivo.
+    publico/                 nivel "publico"    (cualquier usuario)
+    restringido/estudiante/  nivel "estudiante" (estudiantes autenticados)
+    restringido/docente/     nivel "docente"    (solo docente)
+El nivel se guarda en cada `Document` y en cada `Chunk`, y lo aplica core.py
+(SessionRAG) antes de construir el contexto que se le pasa al LLM.
 
 Uso (prueba de chunking, sin modelos ni API):
     uv run python documents.py
@@ -17,8 +18,15 @@ Uso (prueba de chunking, sin modelos ni API):
 from dataclasses import dataclass
 from pathlib import Path
 
-# Subcarpetas de data_dir que se indexan.
-DOCUMENT_DIRS = ("publico", "restringido")
+# Cada nivel vive en su propia carpeta bajo data/.
+#   publico/                 → nivel "publico"
+#   restringido/estudiante/  → nivel "estudiante"
+#   restringido/docente/     → nivel "docente"
+CARPETAS_POR_NIVEL = (
+    ("publico", ("publico",)),
+    ("estudiante", ("restringido", "estudiante")),
+    ("docente", ("restringido", "docente")),
+)
 
 # Archivos que NO son conocimiento del curso: enunciados de otra asignatura y un solucionario.
 # Nunca deben llegar al índice (el solucionario es de uso exclusivo del docente).
@@ -33,6 +41,7 @@ EXCLUDED_DOCS = {
 class Document:
     source: str  # nombre del archivo, p. ej. "evaluacion.md"
     text: str
+    nivel: str  # "publico" | "estudiante" | "docente"
 
 
 @dataclass(frozen=True)
@@ -40,18 +49,38 @@ class Chunk:
     id: str  # documento de origen + posición, p. ej. "evaluacion.md#2"
     source: str
     text: str
+    nivel: str = "publico"  # default para compatibilidad con índices antiguos
 
 
 def load_documents(data_dir: Path) -> list[Document]:
-    paths: list[Path] = []
-    for sub in DOCUMENT_DIRS:
-        folder = data_dir / sub
-        if folder.is_dir():
-            paths.extend(folder.rglob("*.md"))
-    if not paths:  # compatibilidad: carpeta plana con .md
-        paths = list(data_dir.glob("*.md"))
-    paths = sorted(p for p in paths if p.name not in EXCLUDED_DOCS)
-    return [Document(source=path.name, text=path.read_text(encoding="utf-8")) for path in paths]
+    docs: list[Document] = []
+    for nivel, partes in CARPETAS_POR_NIVEL:
+        folder = data_dir.joinpath(*partes)
+        if not folder.is_dir():
+            continue
+        for path in sorted(folder.rglob("*.md")):
+            if path.name in EXCLUDED_DOCS:
+                continue
+            docs.append(
+                Document(
+                    source=path.name,
+                    text=path.read_text(encoding="utf-8"),
+                    nivel=nivel,
+                )
+            )
+    # Compatibilidad: carpeta plana con .md sueltos → se tratan como "publico".
+    if not docs:
+        for path in sorted(data_dir.glob("*.md")):
+            if path.name in EXCLUDED_DOCS:
+                continue
+            docs.append(
+                Document(
+                    source=path.name,
+                    text=path.read_text(encoding="utf-8"),
+                    nivel="publico",
+                )
+            )
+    return docs
 
 
 def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
@@ -72,7 +101,12 @@ def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
 
 def chunk_documents(documents: list[Document], chunk_size: int, overlap: int) -> list[Chunk]:
     return [
-        Chunk(id=f"{doc.source}#{i}", source=doc.source, text=text)
+        Chunk(
+            id=f"{doc.source}#{i}",
+            source=doc.source,
+            text=text,
+            nivel=doc.nivel,
+        )
         for doc in documents
         for i, text in enumerate(chunk_text(doc.text, chunk_size, overlap))
     ]

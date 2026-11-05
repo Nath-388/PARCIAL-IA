@@ -40,9 +40,13 @@ logger = logging.getLogger(__name__)
 
 LAB_DIR = Path(__file__).resolve().parent
 
-# Documentos por nivel de acceso (encabezado "Nivel de acceso: ..." de cada archivo).
-DOCENTE_ONLY_DOCS = {"casos-especiales.md", "rubrica-interna-proyecto.md"}
-ESTUDIANTE_ONLY_DOCS = {"guia-segundo-parcial.md", "monitorias.md"}
+
+# Reemplaza DOCENTE_ONLY_DOCS y ESTUDIANTE_ONLY_DOCS por esta tabla:
+NIVELES_PERMITIDOS_POR_ROL = {
+    "publico": {"publico"},
+    "estudiante": {"publico", "estudiante"},
+    "docente": {"publico", "estudiante", "docente"},
+}
 
 MAX_HISTORIAL = 20
 
@@ -169,32 +173,37 @@ def _contexto_sesion(sesion: Sesion) -> str:
 # --------------------------------------------------------------------------
 
 class SessionRAG(CourseRAG):
-    """CourseRAG que solo recupera los documentos permitidos para el rol de la sesión.
+    """CourseRAG que solo recupera los niveles permitidos para el rol de la sesión.
 
-    Al sobreescribir `retrieve`, el filtro aplica a TODAS las rutas del orquestador:
-    la tool buscar_documentos (modo agente) y CourseRAG.answer (ruta "documentos").
+    El filtro se aplica a TODAS las rutas del orquestador (tool `buscar_documentos`
+    y `CourseRAG.answer`) porque ambas pasan por `retrieve`.
     """
 
     def __init__(self, base: CourseRAG, rol: str):
         super().__init__(base.llm, base.embedder, base.store, base.top_k, base.min_score)
         self.rol = rol
+        # True si, en la última consulta, había evidencia relevante pero restringida.
+        self.bloqueado_por_rol = False
 
-    def _permitido(self, source: str) -> bool:
-        if self.rol == "docente":
-            return True
-        if source in DOCENTE_ONLY_DOCS:
-            return False
-        if self.rol == "estudiante":
-            return True
-        return source not in ESTUDIANTE_ONLY_DOCS  # público
+    def _permitido(self, nivel: str) -> bool:
+        return nivel in NIVELES_PERMITIDOS_POR_ROL.get(self.rol, {"publico"})
 
     def retrieve(self, question: str) -> list[SearchResult]:
+        self.bloqueado_por_rol = False
         vector = self.embedder.embed_query(question)
-        # Se busca en todo el índice y se filtra ANTES de aplicar top_k: así los documentos
-        # restringidos no desplazan a los permitidos.
         results = self.store.search(vector, len(self.store))
-        allowed = [r for r in results if self._permitido(r.chunk.source) and r.score >= self.min_score]
-        return allowed[: self.top_k]
+        permitidos = [
+            r for r in results
+            if self._permitido(r.chunk.nivel) and r.score >= self.min_score
+        ]
+        if not permitidos:
+            # ¿Existía evidencia que el rol no puede ver? Entonces el aviso cambia:
+            # no es "no encontré", es "no tienes permiso".
+            self.bloqueado_por_rol = any(
+                (not self._permitido(r.chunk.nivel)) and r.score >= self.min_score
+                for r in results
+            )
+        return permitidos[: self.top_k]
 
 
 def _tool_con_sesion(tool: Tool, sesion: Sesion) -> Tool:
@@ -276,31 +285,39 @@ class Core:
         self._rag = None
         self._llm = None
 
-    def _orquestador(self, sesion: Sesion) -> Orchestrator:
+    def _orquestador(self, sesion: Sesion) -> tuple[Orchestrator, SessionRAG]:
         assert self._llm is not None and self._rag is not None
         rag = SessionRAG(self._rag, sesion.rol)
         tools = [_tool_con_sesion(t, sesion) for t in self._base_tools]
-        return Orchestrator(self._llm, rag, tools, _rechazar)
+        return Orchestrator(self._llm, rag, tools, _rechazar), rag
 
     async def responder(self, pregunta: str, historial: list[Message], sesion: Sesion) -> str:
         try:
             if self._stack is None:
                 await self.iniciar()
-            orquestador = self._orquestador(sesion)
-            # El contexto de sesión viaja como mensaje de sistema antes del historial del chat.
-            contexto: list[Message] = [{"role": "system", "content": _contexto_sesion(sesion)}, *historial]
+            orquestador, rag = self._orquestador(sesion)
+            contexto: list[Message] = [
+                {"role": "system", "content": _contexto_sesion(sesion)}, *historial
+            ]
             respuesta = await orquestador.answer(pregunta, contexto, MODO)
         except LLMError as exc:
-            logger.error("Error del LLM: %s", exc)
-            return MSG_LLM_CAIDO
-        except (ValueError, FileNotFoundError) as exc:
-            logger.error("Error de configuración o índice: %s", exc)
-            return "El asistente no está configurado correctamente. Avisa al administrador."
-        except Exception:
-            logger.exception("Error inesperado en responder() (¿servidor MCP caído?)")
-            return MSG_ERROR
-
+            ...
+        # ...
         texto = respuesta.text.strip() or "No pude generar una respuesta. Intenta reformular la pregunta."
+
+        # Si la evidencia existía pero el rol no puede verla, se lo decimos sin revelar contenido.
+        if rag.bloqueado_por_rol and not respuesta.sources:
+            if sesion.rol == "publico":
+                texto += (
+                    "\n\n(La información que buscas está en documentos que requieren "
+                    "iniciar sesión. Usa /login <código> para consultarla.)"
+                )
+            else:
+                texto += (
+                    "\n\n(La información que buscas está en documentos reservados "
+                    "para otro rol, por lo que no puedo mostrarla en esta sesión.)"
+                )
+
         if respuesta.sources:
             texto += f"\n\nFuentes: {', '.join(respuesta.sources)}"
         return texto

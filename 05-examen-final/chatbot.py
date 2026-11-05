@@ -116,8 +116,7 @@ async def chat(orchestrator: Orchestrator, mode: Mode, debug: bool) -> None:
             print_debug(answer)
         print(f"\nAsistente: {answer.text}\n")
         if answer.sources:
-            # Las fuentes las lista el programa a partir de lo recuperado, no el LLM.
-            print(f"Fuentes: {', '.join(answer.sources)}\n")
+            print(f"fuentes: {', '.join(answer.sources)}")
 
         # Como en los labs anteriores, el historial guarda solo la pregunta y la respuesta final.
         history.append({"role": "user", "content": user_input})
