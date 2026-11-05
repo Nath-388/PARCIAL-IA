@@ -5,6 +5,7 @@ dev = [
     "mcp>=2.3.0",
     "numpy>=2.5.4",
     "openai>=3.46.0",
+    "opencv-python>=5.0.0.93",
     "pydantic>=2.14.2",
     "python-dotenv>=1.2.4",
     "python-telegram-bot>=22.8",

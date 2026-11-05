@@ -84,6 +84,20 @@ def _cargar_usuarios() -> list[dict]:
         return []
     return json.loads(path.read_text(encoding="utf-8")).get("usuarios", [])
 
+def buscar_usuario(identificador: str) -> dict | None:
+    """Busca un usuario en usuarios.json por código de estudiante o id interno.
+
+    Devuelve el dict crudo del JSON o None. autenticar() usa esta función
+    internamente para no duplicar la búsqueda.
+    """
+    if not identificador:
+        return None
+    identificador = identificador.strip()
+    for u in _cargar_usuarios():
+        if u.get("codigo_estudiante") == identificador or u.get("id") == identificador:
+            return u
+    return None
+
 
 def autenticar(identificador: str, telegram_user_id: int | None = None) -> Sesion | None:
     """Devuelve la Sesion autenticada o None si el identificador no existe.
@@ -329,3 +343,7 @@ async def cerrar_core() -> None:
     if _core is not None:
         await _core.cerrar()
         _core = None
+
+
+
+

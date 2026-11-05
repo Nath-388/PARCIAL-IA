@@ -26,7 +26,7 @@ import cv2
 
 import face
 
-USUARIOS = Path(__file__).resolve().parent / "usuarios.json"
+USUARIOS = Path(__file__).resolve().parent / "data" / "usuarios.json"
 
 
 def _cargar() -> dict:
