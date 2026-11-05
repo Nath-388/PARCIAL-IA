@@ -1,0 +1,24 @@
+{
+  "_nota": "Datos ficticios del sistema académico. Una nota null significa que aún no está registrada.",
+  "estudiantes": {
+    "2026001": {
+      "nombre": "Ana Torres",
+      "notas": {"parcial_1": null, "parcial_2": null, "laboratorios": [4.5, 4.0], "proyecto": null}
+    },
+    "2026002": {
+      "nombre": "Bruno Díaz",
+      "notas": {"parcial_1": null, "parcial_2": null, "laboratorios": [3.2, 2.8], "proyecto": null}
+    },
+    "2026003": {
+      "nombre": "Carla Rojas",
+      "notas": {"parcial_1": null, "parcial_2": null, "laboratorios": [4.8, 4.6], "proyecto": null}
+    }
+  },
+  "calendario": [
+    {"fecha": "2026-09-14", "evento": "Inicio de la unidad 5: De Transformer a sistemas orquestados con LLM"},
+    {"fecha": "2026-10-20", "evento": "Primer parcial, 6:00 p. m., salón B-204 (trasladado desde el 15 de octubre)"},
+    {"fecha": "2026-11-26", "evento": "Segundo parcial, 6:00 p. m., salón B-204"},
+    {"fecha": "2026-12-03", "evento": "Entrega del proyecto final (código e informe)"},
+    {"fecha": "2026-12-07", "evento": "Semana de sustentaciones del proyecto final"}
+  ]
+}

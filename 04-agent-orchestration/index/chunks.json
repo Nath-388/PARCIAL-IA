@@ -1,0 +1,125 @@
+{
+  "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "chunks": [
+    {
+      "id": "anuncios.md#0",
+      "source": "anuncios.md",
+      "text": "# Anuncios del curso de Inteligencia Artificial ## Anuncio del 28 de septiembre de 2026: cambio de fecha del primer parcial Por la jornada institucional de investigación, el primer parcial se traslada del jueves 15 de octubre al martes 20 de octubre de 2026, a la misma hora (6:00 p. m.) y en el mismo salón B-204. Los temas evaluados no cambian. ## Anuncio del 21 de septiembre de 2026: publicación del laboratorio 2 Ya está publicado el laboratorio 2,"
+    },
+    {
+      "id": "anuncios.md#1",
+      "source": "anuncios.md",
+      "text": "no cambian. ## Anuncio del 21 de septiembre de 2026: publicación del laboratorio 2 Ya está publicado el laboratorio 2, sobre RAG (generación aumentada por recuperación), en el repositorio de laboratorios. Recuerden actualizar su copia con git pull y ejecutar uv sync, porque este laboratorio agrega nuevas dependencias. ## Anuncio del 14 de septiembre de 2026: inicio de la unidad 5 Comienza la unidad 5, De Transformer a sistemas orquestados con LLM. Durante cuatro semanas construiremos el Asistente Inteligente del"
+    },
+    {
+      "id": "anuncios.md#2",
+      "source": "anuncios.md",
+      "text": "5 Comienza la unidad 5, De Transformer a sistemas orquestados con LLM. Durante cuatro semanas construiremos el Asistente Inteligente del Curso de IA. Cada semana se publica un laboratorio que parte del anterior."
+    },
+    {
+      "id": "evaluacion.md#0",
+      "source": "evaluacion.md",
+      "text": "# Evaluación del curso de Inteligencia Artificial ## Distribución de la nota La nota final del curso se calcula así: primer parcial 20 %, segundo parcial 20 %, laboratorios 35 % y proyecto final 25 %. Todas las notas se expresan en una escala de 0.0 a 5.0. La nota mínima para aprobar el curso es 3.0. ## Parciales El primer parcial se realizará el jueves 15 de octubre de 2026 a las 6:00 p. m., de forma presencial en"
+    },
+    {
+      "id": "evaluacion.md#1",
+      "source": "evaluacion.md",
+      "text": "primer parcial se realizará el jueves 15 de octubre de 2026 a las 6:00 p. m., de forma presencial en el salón B-204. El primer parcial evalúa las unidades 1, 2 y 3: fundamentos de IA, aprendizaje automático y redes neuronales. Dura dos horas y se permite una hoja de apuntes escrita a mano. El segundo parcial se realizará el jueves 26 de noviembre de 2026 a las 6:00 p. m., también en el salón B-204. El segundo parcial evalúa"
+    },
+    {
+      "id": "evaluacion.md#2",
+      "source": "evaluacion.md",
+      "text": "jueves 26 de noviembre de 2026 a las 6:00 p. m., también en el salón B-204. El segundo parcial evalúa las unidades 4 y 5: procesamiento de lenguaje natural, Transformers y sistemas con LLM. ## Laboratorios Los laboratorios valen el 35 % de la nota final. Todos los laboratorios tienen el mismo peso. En la unidad 5 hay un laboratorio por semana; cada uno se entrega en la tarea de Teams correspondiente antes de la fecha límite indicada en la"
+    },
+    {
+      "id": "evaluacion.md#3",
+      "source": "evaluacion.md",
+      "text": "por semana; cada uno se entrega en la tarea de Teams correspondiente antes de la fecha límite indicada en la tarea. ## Proyecto final El proyecto final se desarrolla en grupos de tres estudiantes. La entrega del código y del informe es el jueves 3 de diciembre de 2026, y las sustentaciones se realizan la semana del 7 de diciembre. En la sustentación cualquier integrante del grupo debe poder explicar cualquier parte del código. ## Supletorios Quien no presente un"
+    },
+    {
+      "id": "evaluacion.md#4",
+      "source": "evaluacion.md",
+      "text": "En la sustentación cualquier integrante del grupo debe poder explicar cualquier parte del código. ## Supletorios Quien no presente un parcial por una causa justificada (incapacidad médica, calamidad doméstica o representación institucional) puede solicitar un supletorio. La solicitud se envía por Teams a la docente, con el soporte correspondiente, dentro de los tres días hábiles siguientes al parcial."
+    },
+    {
+      "id": "faq-labs.md#0",
+      "source": "faq-labs.md",
+      "text": "# Preguntas frecuentes sobre los laboratorios ## ¿Qué necesito instalar para los laboratorios? Se necesita Python 3.11 o superior y uv, el gestor de entornos y dependencias de Python. Desde la raíz del repositorio se ejecuta uv sync para instalar las dependencias. Si no se puede instalar nada en el equipo, se puede trabajar en GitHub Codespaces. ## El programa dice \"Falta LLM_API_KEY\" El archivo .env no existe o no tiene la clave. Hay que copiar .env.example como .env y"
+    },
+    {
+      "id": "faq-labs.md#1",
+      "source": "faq-labs.md",
+      "text": "dice \"Falta LLM_API_KEY\" El archivo .env no existe o no tiene la clave. Hay que copiar .env.example como .env y escribir la API key del proveedor en la variable LLM_API_KEY. El archivo .env debe estar en la raíz del repositorio. ## Aparece un error 401 del proveedor Un error 401 significa que el proveedor rechazó la API key: la clave está mal copiada, fue revocada o corresponde a otro proveedor distinto al configurado en LLM_PROVIDER. Hay que revisar que la"
+    },
+    {
+      "id": "faq-labs.md#2",
+      "source": "faq-labs.md",
+      "text": "está mal copiada, fue revocada o corresponde a otro proveedor distinto al configurado en LLM_PROVIDER. Hay que revisar que la clave y el proveedor coincidan. ## Aparece un error 429 del proveedor Un error 429 significa que se superó el límite de peticiones o de tokens del plan gratuito. Hay que esperar un minuto y volver a intentar, o cambiar a un modelo más pequeño en LLM_MODEL. ## ¿Puedo usar otro proveedor u otro modelo? Sí. Los laboratorios funcionan con"
+    },
+    {
+      "id": "faq-labs.md#3",
+      "source": "faq-labs.md",
+      "text": "a un modelo más pequeño en LLM_MODEL. ## ¿Puedo usar otro proveedor u otro modelo? Sí. Los laboratorios funcionan con Groq, OpenRouter, OpenAI y DeepSeek. Para cambiar de proveedor solo se modifican LLM_PROVIDER, LLM_API_KEY y LLM_MODEL en el archivo .env, sin cambiar el código. ## La primera ejecución del laboratorio 2 es lenta La primera vez que se calculan embeddings se descarga el modelo de embeddings, de unos 220 MB, y se guarda en caché. Las ejecuciones siguientes usan la"
+    },
+    {
+      "id": "faq-labs.md#4",
+      "source": "faq-labs.md",
+      "text": "se descarga el modelo de embeddings, de unos 220 MB, y se guarda en caché. Las ejecuciones siguientes usan la copia local y no requieren descargarlo de nuevo. ## ¿Dónde se entregan los laboratorios? Cada laboratorio se entrega en la tarea de Microsoft Teams correspondiente, antes de la fecha límite indicada en la tarea. No se reciben entregas por correo electrónico."
+    },
+    {
+      "id": "politicas.md#0",
+      "source": "politicas.md",
+      "text": "# Políticas del curso de Inteligencia Artificial ## Entregas extemporáneas Las entregas extemporáneas se reciben hasta 48 horas después de la fecha límite, con una penalización de 0.5 sobre 5.0 por cada 24 horas de retraso o fracción. Después de 48 horas la entrega no se recibe y la nota es 0.0. Si hay una causa justificada, se debe informar a la docente antes de la fecha límite. ## Trabajo individual y en parejas Los laboratorios se pueden desarrollar de"
+    },
+    {
+      "id": "politicas.md#1",
+      "source": "politicas.md",
+      "text": "a la docente antes de la fecha límite. ## Trabajo individual y en parejas Los laboratorios se pueden desarrollar de forma individual o en parejas. Si se trabaja en pareja, ambos integrantes suben la misma entrega e indican el nombre del compañero. El proyecto final se desarrolla en grupos de tres estudiantes. ## Uso de herramientas de IA generativa Se permite usar asistentes de IA generativa (chatbots y asistentes de programación, por ejemplo ChatGPT, Claude o GitHub Copilot) como apoyo"
+    },
+    {
+      "id": "politicas.md#2",
+      "source": "politicas.md",
+      "text": "permite usar asistentes de IA generativa (chatbots y asistentes de programación, por ejemplo ChatGPT, Claude o GitHub Copilot) como apoyo para aprender y para escribir código. Todo uso debe declararse en la entrega, en una sección llamada \"Uso de IA\", indicando la herramienta y para qué se usó. El estudiante debe poder explicar cualquier línea de su entrega; si no puede explicarla en la revisión, la nota de esa parte será 0.0. Presentar como propio trabajo de otra persona se"
+    },
+    {
+      "id": "politicas.md#3",
+      "source": "politicas.md",
+      "text": "puede explicarla en la revisión, la nota de esa parte será 0.0. Presentar como propio trabajo de otra persona se considera fraude académico. ## Seguridad de las credenciales Las API keys y los archivos .env nunca se incluyen en una entrega ni se suben a un repositorio. Una entrega que incluya una API key tiene una penalización del 20 % de la nota del laboratorio, y el estudiante debe revocar la clave de inmediato en la consola del proveedor. ##"
+    },
+    {
+      "id": "politicas.md#4",
+      "source": "politicas.md",
+      "text": "de la nota del laboratorio, y el estudiante debe revocar la clave de inmediato en la consola del proveedor. ## Reclamos de notas Los reclamos sobre una calificación se presentan por escrito, por Teams, dentro de los cinco días hábiles siguientes a la publicación de la nota. El reclamo debe indicar qué punto se revisa y por qué. La respuesta se entrega en un máximo de cinco días hábiles. ## Asistencia La asistencia mínima requerida es del 80 % de"
+    },
+    {
+      "id": "politicas.md#5",
+      "source": "politicas.md",
+      "text": "se entrega en un máximo de cinco días hábiles. ## Asistencia La asistencia mínima requerida es del 80 % de las clases. Las inasistencias por causa justificada se reportan por Teams con el soporte correspondiente."
+    },
+    {
+      "id": "programa.md#0",
+      "source": "programa.md",
+      "text": "# Programa del curso de Inteligencia Artificial ## Descripción El curso de Inteligencia Artificial es una asignatura de los programas de Ingeniería de Sistemas e Ingeniería de Software. Tiene 3 créditos académicos y se dicta durante 16 semanas. El curso recorre los fundamentos de la inteligencia artificial, el aprendizaje automático, las redes neuronales y el procesamiento de lenguaje natural, y termina con una unidad aplicada sobre cómo construir sistemas de software que usan modelos de lenguaje. ## Docente y horarios"
+    },
+    {
+      "id": "programa.md#1",
+      "source": "programa.md",
+      "text": "termina con una unidad aplicada sobre cómo construir sistemas de software que usan modelos de lenguaje. ## Docente y horarios La docente del curso es la profesora Laura Méndez. El canal oficial de comunicación es el equipo de Microsoft Teams del curso; los correos personales no se usan para trámites del curso. Las clases del curso de Inteligencia Artificial son los martes y jueves de 6:00 p. m. a 8:00 p. m. en el salón B-204. El horario de asesoría"
+    },
+    {
+      "id": "programa.md#2",
+      "source": "programa.md",
+      "text": "los martes y jueves de 6:00 p. m. a 8:00 p. m. en el salón B-204. El horario de asesoría es los miércoles de 5:00 p. m. a 6:00 p. m., de forma virtual en el equipo de Teams del curso. Para asistir a la asesoría no es necesario reservar cita previa. ## Unidades del curso 1. Fundamentos de inteligencia artificial: agentes, búsqueda y representación del conocimiento (semanas 1 a 3). 2. Aprendizaje automático: regresión, clasificación, evaluación de modelos y"
+    },
+    {
+      "id": "programa.md#3",
+      "source": "programa.md",
+      "text": "artificial: agentes, búsqueda y representación del conocimiento (semanas 1 a 3). 2. Aprendizaje automático: regresión, clasificación, evaluación de modelos y sobreajuste (semanas 4 a 6). 3. Redes neuronales: perceptrón multicapa, retropropagación y redes convolucionales (semanas 7 a 9). 4. Procesamiento de lenguaje natural: representaciones de texto, mecanismo de atención y arquitectura Transformer (semanas 10 a 12). 5. De Transformer a sistemas orquestados con LLM: uso de LLM mediante API, RAG, herramientas y MCP, agentes y orquestación (semanas 13 a 16)."
+    },
+    {
+      "id": "programa.md#4",
+      "source": "programa.md",
+      "text": "sistemas orquestados con LLM: uso de LLM mediante API, RAG, herramientas y MCP, agentes y orquestación (semanas 13 a 16). Esta unidad se trabaja con un laboratorio práctico por semana en Python. ## Bibliografía - Russell, S. y Norvig, P. Inteligencia Artificial: un enfoque moderno. - Jurafsky, D. y Martin, J. Speech and Language Processing. - Documentación oficial de los proveedores de modelos de lenguaje y del protocolo MCP."
+    }
+  ]
+}
