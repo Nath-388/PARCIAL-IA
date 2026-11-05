@@ -3,14 +3,14 @@
   "usuarios": [
     {
       "id": "integrante_1",
-      "nombre": "<INTEGRANTE_1>",
+      "nombre": "Nathalia Rojas",
       "rol": "estudiante",
-      "codigo_estudiante": "<CODIGO_1>",
+      "codigo_estudiante": "000548492",
       "telegram_user_id": null
     },
     {
       "id": "integrante_2",
-      "nombre": "<INTEGRANTE_2>",
+      "nombre": "Dalyali Porras",
       "rol": "docente",
       "codigo_estudiante": null,
       "telegram_user_id": null
