@@ -1,8 +1,6 @@
 .env
-.venv/
-__pycache__/
 modelos/
 rostros/
 auditoria*.jsonl
 calibracion/
-fotos/
+.env
